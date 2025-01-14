@@ -1,0 +1,42 @@
+{
+  "AGI": {
+    "synopsis": "Executes an AGI compliant application.",
+    "description": "Executes an Asterisk Gateway Interface compliant program on a channel. AGI allows Asterisk to launch external programs written in any language to control a telephony channel, play audio, read DTMF digits, etc. by communicating with the AGI protocol.",
+    "syntax": "AGI(command,arg1,[arg2[,...]])",
+    "arguments": [
+      {
+        "name": "command",
+        "description": "",
+        "required": false
+      },
+      {
+        "name": "args",
+        "description": "",
+        "required": false,
+        "subArguments": [
+          {
+            "name": "arg1",
+            "description": "required",
+            "required": true
+          },
+          {
+            "name": "arg2[,arg2...]",
+            "description": "",
+            "required": false
+          }
+        ]
+      },
+      {
+        "name": "arg1",
+        "description": "",
+        "required": false
+      },
+      {
+        "name": "arg2[,arg2...]",
+        "description": "",
+        "required": false
+      }
+    ],
+    "link": "https://docs.asterisk.org/Asterisk_16_Documentation/API_Documentation/Dialplan_Applications/AGI/"
+  }
+}

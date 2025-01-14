@@ -3,6 +3,7 @@
   "displayName": "Asterisk Language Service",
   "description": "",
   "version": "0.0.1",
+  "type": "commonjs",
   "engines": {
     "vscode": "^1.96.0"
   },
