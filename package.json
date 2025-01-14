@@ -4,6 +4,10 @@
   "description": "",
   "version": "0.0.1",
   "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ashuvax/asterisk-language-service.git"
+  },
   "engines": {
     "vscode": "^1.96.0"
   },
