@@ -2,17 +2,19 @@
   "name": "asterisk-language-service",
   "displayName": "Asterisk Language Service",
   "description": "",
-  "version": "0.0.1",
+  "version": "0.0.5",
   "type": "commonjs",
+  "publisher": "aronshuvax",
   "repository": {
     "type": "git",
     "url": "https://github.com/ashuvax/asterisk-language-service.git"
   },
+  "icon": "images/logo.png",
   "engines": {
     "vscode": "^1.96.0"
   },
   "categories": [
-    "Other"
+    "Programming Languages"
   ],
   "activationEvents": [
     "onLanguage:asterisk"
@@ -28,7 +30,8 @@
         ],
         "extensions": [
           ".conf"
-        ]
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [

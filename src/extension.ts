@@ -69,7 +69,6 @@ class AsteriskHoverProvider implements HoverProvider {
 			}
 			markdownString.appendMarkdown(`\n`);
 		}
-		// see more - entry.link
 		markdownString.appendMarkdown(`[See more](${entry.link})`);
 
 		return new Hover(markdownString);
@@ -80,62 +79,77 @@ function updateDiagnostics(
 	document: vscode.TextDocument,
 	collection: vscode.DiagnosticCollection
 ): void {
+	// בדיקה שהמסמך שייך לשפת Asterisk
 	if (document.languageId !== "asterisk") {
 		return;
 	}
 
 	const diagnostics: vscode.Diagnostic[] = [];
 
+	// מעבר על כל השורות במסמך
 	for (let lineIndex = 0; lineIndex < document.lineCount; lineIndex++) {
 		const lineOfText = document.lineAt(lineIndex);
 		const line = lineOfText.text;
 
-		// Skip comment lines
+		// התעלמות משורות שמתחילות בהערות
 		if (line.trim().startsWith(";")) {
 			continue;
 		}
 
 		const stack: { char: string; index: number }[] = [];
-		let inString = false;
-		let stringChar = '';
+		let inString = false; // משתנה למעקב אחרי מחרוזת
+		let stringChar = ""; // סוג סוגר המחרוזת (או ' או ")
 
+		// מעבר על כל תווים בשורה
 		for (let charIndex = 0; charIndex < line.length; charIndex++) {
 			const char = line[charIndex];
 
+			// סיום עיבוד השורה אם יש הערה (;) מחוץ למחרוזת
+			if (char === ";" && !inString) {
+				break;
+			}
+
+			// בדיקה אם נמצאים בתוך מחרוזת
 			if (inString) {
-				if (char === stringChar && line[charIndex - 1] !== '\\') {
+				if (char === stringChar && line[charIndex - 1] !== "\\") {
+					// סגירת מחרוזת אם נמצא סוגר מתאים
 					inString = false;
-					stringChar = '';
+					stringChar = "";
 				}
 			} else {
 				if (char === '"' || char === "'") {
+					// פתיחת מחרוזת
 					inString = true;
 					stringChar = char;
-				} else if (char === '{' || char === '[' || char === '(') {
+				} else if (char === "{" || char === "[" || char === "(") {
+					// הוספת סוגר פתוח למחסנית
 					stack.push({ char, index: charIndex });
-				} else if (char === '}' || char === ']' || char === ')') {
+				} else if (char === "}" || char === "]" || char === ")") {
+					// בדיקה אם סוגר סגור מתאים לסוגר הפתוח האחרון
 					const opening = stack.pop();
-					if (opening === undefined) {
+					if (!opening) {
+						// סוגר סגור ללא פתוח מתאים
 						const diagnostic = new vscode.Diagnostic(
 							new vscode.Range(
-								new vscode.Position(lineIndex, charIndex),
-								new vscode.Position(lineIndex, charIndex + 1)
+								new vscode.Position(lineIndex, 0),
+								new vscode.Position(lineIndex, line.length)
 							),
-							`Unmatched closing bracket: ${char}`,
+							`Unmatched closing bracket: ${char}. Expected a matching opening bracket.`,
 							vscode.DiagnosticSeverity.Error
 						);
 						diagnostics.push(diagnostic);
 					} else if (
-						(char === '}' && opening.char !== '{') ||
-						(char === ']' && opening.char !== '[') ||
-						(char === ')' && opening.char !== '(')
+						(char === "}" && opening.char !== "{") ||
+						(char === "]" && opening.char !== "[") ||
+						(char === ")" && opening.char !== "(")
 					) {
+						// סוגר לא תואם לסוגר הפתוח האחרון
 						const diagnostic = new vscode.Diagnostic(
 							new vscode.Range(
-								new vscode.Position(lineIndex, charIndex),
-								new vscode.Position(lineIndex, charIndex + 1)
+								new vscode.Position(lineIndex, 0),
+								new vscode.Position(lineIndex, line.length)
 							),
-							`Unmatched closing bracket: ${char}`,
+							`Mismatched closing bracket: ${char}. Expected '${getExpectedClosingBracket(opening.char)}'.`,
 							vscode.DiagnosticSeverity.Error
 						);
 						diagnostics.push(diagnostic);
@@ -144,15 +158,16 @@ function updateDiagnostics(
 			}
 		}
 
+		// בדיקה אם נשארו סוגריים פתוחים שלא נסגרו
 		while (stack.length > 0) {
 			const opening = stack.pop();
-			if (opening !== undefined) {
+			if (opening) {
 				const diagnostic = new vscode.Diagnostic(
 					new vscode.Range(
-						new vscode.Position(lineIndex, opening.index),
-						new vscode.Position(lineIndex, opening.index + 1)
+						new vscode.Position(lineIndex, 0),
+						new vscode.Position(lineIndex, line.length)
 					),
-					`Unmatched opening bracket: ${opening.char}`,
+					`Unmatched opening bracket: ${opening.char}. Expected '${getExpectedClosingBracket(opening.char)}'.`,
 					vscode.DiagnosticSeverity.Error
 				);
 				diagnostics.push(diagnostic);
@@ -160,14 +175,28 @@ function updateDiagnostics(
 		}
 	}
 
+	// עדכון ה-collection עם כל השגיאות שנמצאו
 	collection.set(document.uri, diagnostics);
 }
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+/**
+ * פונקציה שמחזירה את הסוגר הסוגר המתאים
+ */
+function getExpectedClosingBracket(opening: string): string {
+	switch (opening) {
+		case "{":
+			return "}";
+		case "[":
+			return "]";
+		case "(":
+			return ")";
+		default:
+			return "";
+	}
+}
+
+
 export function activate(context: vscode.ExtensionContext) {
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
 	console.log(
 		'Congratulations, your extension "asterisk-language-service" is now active!'
 	);
@@ -204,5 +233,4 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() { }

@@ -25,7 +25,17 @@
         },
         {
             "name": "variable.asterisk",
-            "match": "\\${[a-zA-Z0-9_]+}"
+            "match": "\\${[a-zA-Z0-9_:]+}"
         }
-    ]
+    ],
+    "repository": {
+        "brackets": {
+            "patterns": [
+                {
+                    "name": "punctuation.bracket.asterisk",
+                    "match": "[(){}\\[\\]]"
+                }
+            ]
+        }
+    }
 }
