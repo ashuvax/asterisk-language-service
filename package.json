@@ -2,7 +2,7 @@
   "name": "asterisk-language-service",
   "displayName": "Asterisk Language Service",
   "description": "",
-  "version": "0.0.5",
+  "version": "0.0.7",
   "type": "commonjs",
   "publisher": "aronshuvax",
   "repository": {

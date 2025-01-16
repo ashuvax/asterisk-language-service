@@ -31,6 +31,66 @@ class AsteriskDefinitionProvider implements DefinitionProvider {
 	}
 }
 
+class GoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+	public provideDocumentSymbols(
+		document: vscode.TextDocument, token: vscode.CancellationToken):
+		Thenable<vscode.DocumentSymbol[]> {
+		// כל בלוק יהיה מסומן כסמל
+		// בלוק מתחיל בשורה שמתחילה בסוגריים מרובעים ומסתיימת כשהיא מגיעה לשורה נוספת שיש בה סוגריים מרובעים ואו בסוף הקובץ
+		const symbols: vscode.DocumentSymbol[] = [];
+		let currentBlockName = "";
+		let currentBlockStart = 0;
+		let currentBlockEnd = 0;
+
+		for (let lineIndex = 0; lineIndex < document.lineCount; lineIndex++) {
+			const lineOfText = document.lineAt(lineIndex);
+			const line = lineOfText.text;
+
+			// בדיקה האם זו שורת בלוק חדש
+			const blockMatch = line.match(/^\[(.*?)\]/);
+			if (blockMatch) {
+				if (currentBlockName) {
+					const range = new vscode.Range(
+						new vscode.Position(currentBlockStart, 0),
+						new vscode.Position(currentBlockEnd, line.length)
+					);
+					const symbol = new vscode.DocumentSymbol(
+						currentBlockName,
+						"",
+						vscode.SymbolKind.Module,
+						range,
+						range
+					);
+					console.log(currentBlockName, currentBlockStart, currentBlockEnd);
+					symbols.push(symbol);
+				}
+				currentBlockName = blockMatch[1];
+				currentBlockStart = lineIndex;
+			} else if (currentBlockName) {
+				currentBlockEnd = lineIndex;
+			}
+		}
+
+		if (currentBlockName) {
+			const range = new vscode.Range(
+				new vscode.Position(currentBlockStart, 0),
+				new vscode.Position(currentBlockEnd, 0)
+			);
+			const symbol = new vscode.DocumentSymbol(
+				currentBlockName,
+				"",
+				vscode.SymbolKind.Module,
+				range,
+				range
+			);
+			console.log(currentBlockName, currentBlockStart, currentBlockEnd);
+			symbols.push(symbol);
+		}
+
+		return Promise.resolve(symbols);
+	}
+}
+
 class AsteriskHoverProvider implements HoverProvider {
 	private documentation: any;
 
@@ -79,28 +139,55 @@ function updateDiagnostics(
 	document: vscode.TextDocument,
 	collection: vscode.DiagnosticCollection
 ): void {
-	// בדיקה שהמסמך שייך לשפת Asterisk
 	if (document.languageId !== "asterisk") {
 		return;
 	}
 
 	const diagnostics: vscode.Diagnostic[] = [];
+	const functionNames = new Set<string>(); // אחסון שמות פונקציות בתוך בלוק
+	let currentBlockName = ""; // שם הבלוק הנוכחי
 
-	// מעבר על כל השורות במסמך
 	for (let lineIndex = 0; lineIndex < document.lineCount; lineIndex++) {
 		const lineOfText = document.lineAt(lineIndex);
 		const line = lineOfText.text;
+
+		// בדיקה האם זו שורת בלוק חדש
+		const blockMatch = line.match(/^\[(.*?)\]/);
+		if (blockMatch) {
+			currentBlockName = blockMatch[1];
+			functionNames.clear(); // ניקוי שמות הפונקציות עבור בלוק חדש
+			continue;
+		}
 
 		// התעלמות משורות שמתחילות בהערות
 		if (line.trim().startsWith(";")) {
 			continue;
 		}
 
+		// בדיקה של כפילויות בשמות פונקציות
+		const functionMatch = line.match(/same\s*=>\s*n\((.*?)\)/);
+		if (functionMatch) {
+			const functionName = functionMatch[1];
+			if (functionNames.has(functionName)) {
+				const diagnostic = new vscode.Diagnostic(
+					new vscode.Range(
+						new vscode.Position(lineIndex, 0),
+						new vscode.Position(lineIndex, line.length)
+					),
+					`Duplicate function name "${functionName}" in block [${currentBlockName}].`,
+					vscode.DiagnosticSeverity.Error
+				);
+				diagnostics.push(diagnostic);
+			} else {
+				functionNames.add(functionName);
+			}
+		}
+
+		// בדיקה של סוגריים
 		const stack: { char: string; index: number }[] = [];
 		let inString = false; // משתנה למעקב אחרי מחרוזת
 		let stringChar = ""; // סוג סוגר המחרוזת (או ' או ")
 
-		// מעבר על כל תווים בשורה
 		for (let charIndex = 0; charIndex < line.length; charIndex++) {
 			const char = line[charIndex];
 
@@ -111,24 +198,19 @@ function updateDiagnostics(
 
 			// בדיקה אם נמצאים בתוך מחרוזת
 			if (inString) {
-				if (char === stringChar && line[charIndex - 1] !== "\\") {
-					// סגירת מחרוזת אם נמצא סוגר מתאים
+				if (char === stringChar && line[charIndex - 1] !== "\\" && line[charIndex + 1] !== stringChar) {
 					inString = false;
 					stringChar = "";
 				}
 			} else {
 				if (char === '"' || char === "'") {
-					// פתיחת מחרוזת
 					inString = true;
 					stringChar = char;
 				} else if (char === "{" || char === "[" || char === "(") {
-					// הוספת סוגר פתוח למחסנית
 					stack.push({ char, index: charIndex });
 				} else if (char === "}" || char === "]" || char === ")") {
-					// בדיקה אם סוגר סגור מתאים לסוגר הפתוח האחרון
 					const opening = stack.pop();
 					if (!opening) {
-						// סוגר סגור ללא פתוח מתאים
 						const diagnostic = new vscode.Diagnostic(
 							new vscode.Range(
 								new vscode.Position(lineIndex, 0),
@@ -143,7 +225,6 @@ function updateDiagnostics(
 						(char === "]" && opening.char !== "[") ||
 						(char === ")" && opening.char !== "(")
 					) {
-						// סוגר לא תואם לסוגר הפתוח האחרון
 						const diagnostic = new vscode.Diagnostic(
 							new vscode.Range(
 								new vscode.Position(lineIndex, 0),
@@ -175,13 +256,9 @@ function updateDiagnostics(
 		}
 	}
 
-	// עדכון ה-collection עם כל השגיאות שנמצאו
 	collection.set(document.uri, diagnostics);
 }
 
-/**
- * פונקציה שמחזירה את הסוגר הסוגר המתאים
- */
 function getExpectedClosingBracket(opening: string): string {
 	switch (opening) {
 		case "{":
@@ -194,7 +271,6 @@ function getExpectedClosingBracket(opening: string): string {
 			return "";
 	}
 }
-
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log(
@@ -214,6 +290,13 @@ export function activate(context: vscode.ExtensionContext) {
 			new AsteriskHoverProvider()
 		)
 	);
+
+	context.subscriptions.push(
+		vscode.languages.registerDocumentSymbolProvider(
+			{ language: "asterisk" },
+			new GoDocumentSymbolProvider())
+	);
+
 
 	const diagnosticCollection =
 		vscode.languages.createDiagnosticCollection("asterisk");

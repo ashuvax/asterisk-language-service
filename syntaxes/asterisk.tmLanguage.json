@@ -26,6 +26,15 @@
         {
             "name": "variable.asterisk",
             "match": "\\${[a-zA-Z0-9_:]+}"
+        },
+        {
+            "name": "meta.block.asterisk",
+            "match": "\\[([\\w-]+)\\]",
+            "captures": {
+                "1": {
+                    "name": "entity.name.section.block.asterisk"
+                }
+            }
         }
     ],
     "repository": {
