@@ -2,7 +2,7 @@
   "name": "asterisk-language-service",
   "displayName": "Asterisk Language Service",
   "description": "",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "type": "commonjs",
   "publisher": "aronshuvax",
   "repository": {
@@ -15,9 +15,6 @@
   },
   "categories": [
     "Programming Languages"
-  ],
-  "activationEvents": [
-    "onLanguage:asterisk"
   ],
   "main": "./out/extension.js",
   "contributes": {

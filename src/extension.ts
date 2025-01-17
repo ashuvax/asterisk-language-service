@@ -38,9 +38,12 @@ class GoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 		// כל בלוק יהיה מסומן כסמל
 		// בלוק מתחיל בשורה שמתחילה בסוגריים מרובעים ומסתיימת כשהיא מגיעה לשורה נוספת שיש בה סוגריים מרובעים ואו בסוף הקובץ
 		const symbols: vscode.DocumentSymbol[] = [];
-		let currentBlockName = "";
-		let currentBlockStart = 0;
-		let currentBlockEnd = 0;
+		let currentContextStart = 0;
+		let currentContextEnd = 0;
+		let lastContextSymbol: vscode.DocumentSymbol | null = null;
+		let currentExtenName = "";
+		let currentExtenStart = 0;
+		let currentExtenEnd = 0;
 
 		for (let lineIndex = 0; lineIndex < document.lineCount; lineIndex++) {
 			const lineOfText = document.lineAt(lineIndex);
@@ -49,42 +52,105 @@ class GoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 			// בדיקה האם זו שורת בלוק חדש
 			const blockMatch = line.match(/^\[(.*?)\]/);
 			if (blockMatch) {
-				if (currentBlockName) {
+				if (currentExtenName) {
 					const range = new vscode.Range(
-						new vscode.Position(currentBlockStart, 0),
-						new vscode.Position(currentBlockEnd, line.length)
+						new vscode.Position(currentExtenStart, 0),
+						new vscode.Position(currentExtenEnd, line.length)
 					);
 					const symbol = new vscode.DocumentSymbol(
-						currentBlockName,
+						currentExtenName,
 						"",
-						vscode.SymbolKind.Module,
+						vscode.SymbolKind.Function,
 						range,
 						range
 					);
-					console.log(currentBlockName, currentBlockStart, currentBlockEnd);
-					symbols.push(symbol);
+					if (lastContextSymbol) {
+						lastContextSymbol.children.push(symbol);
+					} else {
+						symbols.push(symbol);
+					}
+					currentExtenName = "";
 				}
-				currentBlockName = blockMatch[1];
-				currentBlockStart = lineIndex;
-			} else if (currentBlockName) {
-				currentBlockEnd = lineIndex;
+				if (lastContextSymbol) {
+					const range = new vscode.Range(
+						new vscode.Position(currentContextStart, 0),
+						new vscode.Position(currentContextEnd, line.length)
+					);
+
+					lastContextSymbol.range = range;
+					lastContextSymbol.selectionRange = range;
+					symbols.push(lastContextSymbol);
+				}
+				const symbol = new vscode.DocumentSymbol(
+					blockMatch[1],
+					"",
+					vscode.SymbolKind.Namespace,
+					lineOfText.range,
+					lineOfText.range
+				);
+				lastContextSymbol = symbol;
+				currentContextStart = lineIndex;
+			} else if (lastContextSymbol) {
+				currentContextEnd = lineIndex;
+			}
+
+			// בדיקה האם זה שורת exten חדשה
+			const extenMatch = line.match(/^exten\s*=>\s*([^,\s]+)\s*/);
+			if (extenMatch && extenMatch[1] !== currentExtenName) {
+				if (currentExtenName) {
+					const range = new vscode.Range(
+						new vscode.Position(currentExtenStart, 0),
+						new vscode.Position(currentExtenEnd, line.length)
+					);
+					const symbol = new vscode.DocumentSymbol(
+						currentExtenName,
+						"",
+						vscode.SymbolKind.Function,
+						range,
+						range
+					);
+					if (lastContextSymbol) {
+						lastContextSymbol.children.push(symbol);
+					} else {
+						symbols.push(symbol);
+					}
+					console.log(currentExtenName, currentExtenStart, currentExtenEnd);
+				}
+				currentExtenName = extenMatch[1];
+				currentExtenStart = lineIndex;
+			} else if (currentExtenName) {
+				currentExtenEnd = lineIndex;
 			}
 		}
 
-		if (currentBlockName) {
+		if (lastContextSymbol) {
 			const range = new vscode.Range(
-				new vscode.Position(currentBlockStart, 0),
-				new vscode.Position(currentBlockEnd, 0)
+				new vscode.Position(currentContextStart, 0),
+				new vscode.Position(currentContextEnd, 0)
+			);
+			lastContextSymbol.range = range;
+			lastContextSymbol.selectionRange = range;
+			symbols.push(lastContextSymbol);
+		}
+
+		if (currentExtenName) {
+			const range = new vscode.Range(
+				new vscode.Position(currentExtenStart, 0),
+				new vscode.Position(currentExtenEnd, 0)
 			);
 			const symbol = new vscode.DocumentSymbol(
-				currentBlockName,
+				currentExtenName,
 				"",
-				vscode.SymbolKind.Module,
+				vscode.SymbolKind.Function,
 				range,
 				range
 			);
-			console.log(currentBlockName, currentBlockStart, currentBlockEnd);
-			symbols.push(symbol);
+			if (lastContextSymbol) {
+				lastContextSymbol.children.push(symbol);
+			} else {
+				symbols.push(symbol);
+			}
+			console.log(currentExtenName, currentExtenStart, currentExtenEnd);
 		}
 
 		return Promise.resolve(symbols);
@@ -145,23 +211,34 @@ function updateDiagnostics(
 
 	const diagnostics: vscode.Diagnostic[] = [];
 	const functionNames = new Set<string>(); // אחסון שמות פונקציות בתוך בלוק
-	let currentBlockName = ""; // שם הבלוק הנוכחי
+	let currentContextName = "";
+	let currentExtenName = "";
 
 	for (let lineIndex = 0; lineIndex < document.lineCount; lineIndex++) {
 		const lineOfText = document.lineAt(lineIndex);
 		const line = lineOfText.text;
 
+		// התעלמות משורות שמתחילות בהערות
+		if (line.trim().startsWith(";")) {
+			continue;
+		}
+
 		// בדיקה האם זו שורת בלוק חדש
 		const blockMatch = line.match(/^\[(.*?)\]/);
 		if (blockMatch) {
-			currentBlockName = blockMatch[1];
+			currentContextName = blockMatch[1];
 			functionNames.clear(); // ניקוי שמות הפונקציות עבור בלוק חדש
 			continue;
 		}
 
-		// התעלמות משורות שמתחילות בהערות
-		if (line.trim().startsWith(";")) {
-			continue;
+		// בדיקה האם זה שורת exten חדשה
+		const extenMatch = line.match(/^exten\s*=>\s*([^,\s]+)\s*/);
+		if (extenMatch) {
+			const extenName = extenMatch[1];
+			if (currentExtenName !== extenName) {
+				currentExtenName = extenName;
+				functionNames.clear();
+			}
 		}
 
 		// בדיקה של כפילויות בשמות פונקציות
@@ -174,7 +251,7 @@ function updateDiagnostics(
 						new vscode.Position(lineIndex, 0),
 						new vscode.Position(lineIndex, line.length)
 					),
-					`Duplicate function name "${functionName}" in block [${currentBlockName}].`,
+					`Duplicate function name "${functionName}" in context "${currentContextName}" and extension "${currentExtenName}".`,
 					vscode.DiagnosticSeverity.Error
 				);
 				diagnostics.push(diagnostic);
@@ -195,15 +272,14 @@ function updateDiagnostics(
 			if (char === ";" && !inString) {
 				break;
 			}
-
 			// בדיקה אם נמצאים בתוך מחרוזת
 			if (inString) {
-				if (char === stringChar && line[charIndex - 1] !== "\\" && line[charIndex + 1] !== stringChar) {
+				if (char === stringChar && line[charIndex - 1] !== "\\") {
 					inString = false;
 					stringChar = "";
 				}
 			} else {
-				if (char === '"' || char === "'") {
+				if ((char === '"' || char === "'") && line[charIndex - 1] !== "\\") {
 					inString = true;
 					stringChar = char;
 				} else if (char === "{" || char === "[" || char === "(") {
