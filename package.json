@@ -16,6 +16,9 @@
   "categories": [
     "Programming Languages"
   ],
+  "activationEvents": [
+    "onLanguage:asterisk"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
