@@ -268,7 +268,7 @@ function updateDiagnostics(
 						new vscode.Position(lineIndex, 0),
 						new vscode.Position(lineIndex, line.length)
 					),
-					'לא מומלץ להשתמש בהפנייה למספר שורה.',
+					'לא מומלץ להשתמש בהפנייה למספר שורה',
 					vscode.DiagnosticSeverity.Warning
 				);
 				diagnostics.push(diagnostic);
@@ -299,7 +299,7 @@ function updateDiagnostics(
 								new vscode.Position(lineIndex, 0),
 								new vscode.Position(lineIndex, line.length)
 							),
-							'לא מומלץ להשתמש בהפנייה למספר שורה.',
+							'לא מומלץ להשתמש בהפנייה למספר שורה',
 							vscode.DiagnosticSeverity.Warning
 						);
 						diagnostics.push(diagnostic);
@@ -312,7 +312,7 @@ function updateDiagnostics(
 								new vscode.Position(lineIndex, 0),
 								new vscode.Position(lineIndex, line.length)
 							),
-							'לא מומלץ להשתמש בהפנייה למספר שורה.',
+							'לא מומלץ להשתמש בהפנייה למספר שורה',
 							vscode.DiagnosticSeverity.Warning
 						);
 						diagnostics.push(diagnostic);
