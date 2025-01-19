@@ -114,7 +114,6 @@ class GoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 					} else {
 						symbols.push(symbol);
 					}
-					console.log(currentExtenName, currentExtenStart, currentExtenEnd);
 				}
 				currentExtenName = extenMatch[1];
 				currentExtenStart = lineIndex;
@@ -150,7 +149,6 @@ class GoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 			} else {
 				symbols.push(symbol);
 			}
-			console.log(currentExtenName, currentExtenStart, currentExtenEnd);
 		}
 
 		return Promise.resolve(symbols);
@@ -259,6 +257,70 @@ function updateDiagnostics(
 				functionNames.add(functionName);
 			}
 		}
+
+		const gotoMatch = line.match(/\b(Goto|GoTo)\s*\(([^)]*)\)/i);
+		if (gotoMatch) {
+			const goto = gotoMatch[2];
+			const trimmed = goto.trim();
+			if (/^[+\-]?\d+$/.test(trimmed) && !/[^0-9+\-]/.test(trimmed)) {
+				const diagnostic = new vscode.Diagnostic(
+					new vscode.Range(
+						new vscode.Position(lineIndex, 0),
+						new vscode.Position(lineIndex, line.length)
+					),
+					'לא מומלץ להשתמש בהפנייה למספר שורה.',
+					vscode.DiagnosticSeverity.Warning
+				);
+				diagnostics.push(diagnostic);
+			}
+		}
+
+		const gotoIfMatch = line.match(/\bGotoIf\s*\(\$?["']?\[?([^()]*(?:\([^)]*\))?[^()]*)\]?["']?\)/i);
+		if (gotoIfMatch) {
+			const condition = gotoIfMatch[1];  // התנאי הכללי של GotoIf
+
+			// מצא את הסימן שאלה האחרון בשורה
+			const questionMarkIndex = condition.lastIndexOf('?');
+			if (questionMarkIndex !== -1) {
+				// בדוק אם יש נקודתיים אחרי הסימן שאלה
+				const colonIndex = condition.indexOf(':', questionMarkIndex);
+
+				// אם יש נקודתיים לאחר סימן השאלה
+				if (colonIndex !== -1) {
+					// טקסט לפני הנקודתיים (לאחר סימן השאלה)
+					const targetAfterQuestionMark = condition.substring(questionMarkIndex + 1, colonIndex).trim();
+					// טקסט אחרי הנקודתיים
+					const targetAfterColon = condition.substring(colonIndex + 1).trim();
+
+					// בדוק אם הטקסט לפני הנקודתיים הוא רק מספר
+					if (/^[+\-]?\d+$/.test(targetAfterQuestionMark) && !/[^0-9+\-]/.test(targetAfterQuestionMark)) {
+						const diagnostic = new vscode.Diagnostic(
+							new vscode.Range(
+								new vscode.Position(lineIndex, 0),
+								new vscode.Position(lineIndex, line.length)
+							),
+							'לא מומלץ להשתמש בהפנייה למספר שורה.',
+							vscode.DiagnosticSeverity.Warning
+						);
+						diagnostics.push(diagnostic);
+					}
+
+					// בדוק אם הטקסט אחרי הנקודתיים הוא רק מספר
+					if (/^[+\-]?\d+$/.test(targetAfterColon) && !/[^0-9+\-]/.test(targetAfterColon)) {
+						const diagnostic = new vscode.Diagnostic(
+							new vscode.Range(
+								new vscode.Position(lineIndex, 0),
+								new vscode.Position(lineIndex, line.length)
+							),
+							'לא מומלץ להשתמש בהפנייה למספר שורה.',
+							vscode.DiagnosticSeverity.Warning
+						);
+						diagnostics.push(diagnostic);
+					}
+				}
+			}
+		}
+
 
 		// בדיקה של סוגריים
 		const stack: { char: string; index: number }[] = [];
@@ -386,6 +448,9 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	context.subscriptions.push(
+		vscode.workspace.onDidOpenTextDocument((document) => {
+			updateDiagnostics(document, diagnosticCollection);
+		}),
 		vscode.workspace.onDidChangeTextDocument((event) => {
 			updateDiagnostics(event.document, diagnosticCollection);
 		})
