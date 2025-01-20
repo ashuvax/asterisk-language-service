@@ -25,16 +25,6 @@
             "required": false
           }
         ]
-      },
-      {
-        "name": "arg1",
-        "description": "",
-        "required": false
-      },
-      {
-        "name": "arg2[,arg2...]",
-        "description": "",
-        "required": false
       }
     ],
     "link": "https://docs.asterisk.org/Asterisk_16_Documentation/API_Documentation/Dialplan_Applications/AGI/"
